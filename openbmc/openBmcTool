@@ -1,0 +1,342 @@
+#!/usr/bin/env python
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#
+# Documentation:
+#
+# OpenBMC cheatsheet
+# https://github.com/openbmc/docs/blob/master/cheatsheet.md
+#
+# OpenBMC REST API
+# https://github.com/openbmc/docs/blob/master/rest-api.md
+#
+# OpenBMC DBUS API
+# https://github.com/openbmc/docs/blob/master/dbus-interfaces.md
+#
+
+import argparse
+import sys
+import pdb
+import json
+from openbmc.OpenBMC import OpenBMC
+
+# Create a decorator pattern that maintains a registry
+def makeRegistrar():
+    registry = {}
+    def registrar(func):
+        registry[func.__name__] = func
+        # normally a decorator returns a wrapped function, 
+        # but here we return func unmodified, after registering it
+        return func
+    registrar.all = registry
+    return registrar
+
+# Create the decorator
+command = makeRegistrar()
+
+def _enumerate_org_openbmc_control(ob, args):
+    # Enumerate the inventory of the system's control hardware
+    mappings = {}
+    filter_list = ["/power", "/chassis"]
+
+    items = ob.enumerate("/org/openbmc/control/").items()
+
+    # Loop through the returned map items
+    for (item_key, item_value) in items:
+        # We only care about filter entries
+        if not any(x in item_key for x in filter_list):
+            continue
+
+        if args.verbose:
+            print "Found:"
+            print item_key
+            print item_value
+
+        # Add the entry into our mappings
+        for fltr in filter_list:
+            idx = item_key.find(fltr)
+            if idx > -1:
+                # Get the identity (the rest of the string)
+                ident = item_key[idx+len(fltr):]
+                # Create a new map for the first time
+                if not mappings.has_key(ident):
+                    mappings[ident] = {}
+                # Save both the full filename and map contents
+                mappings[ident][fltr] = (item_key, item_value)
+
+    return mappings
+
+@command
+def is_power(ob, parser, args, subparsers = None):
+    if subparsers is not None:
+        parser_ispower = subparsers.add_parser("is_power")
+        parser_ispower.add_argument("command",
+                                    action="store",
+                                    help="{on,off,?}")
+        parser_ispower.set_defaults(func=is_power)
+        return
+
+    # Query /org/openbmc/control for power and chassis entries
+    mappings = ob.get_power_chassis_mappings()
+    if mappings is None:
+        return False
+
+    # Loop through the found power & chassis entries
+    for (ident, ident_mappings) in mappings.items():
+
+        # Grab our information back out of the mappings
+        (power_url, power_mapping) = ident_mappings["/power"]
+        (chassis_url, chassis_mapping) = ident_mappings["/chassis"]
+
+        if args.verbose:
+            msg = "Current state of %s is %s" % (power_url,
+                                                 power_mapping["state"], )
+            print msg
+
+        if args.command.upper().lower() == "on":
+            if power_mapping["state"] == 1:
+                return True
+            else:
+                return False
+        elif args.command.upper().lower() == "off":
+            if power_mapping["state"] == 1:
+                return False
+            else:
+                return True
+        elif args.command.upper().lower() == "?":
+            if power_mapping["state"] == 1:
+                print "Power is on"
+                return True
+            else:
+                print "Power is off"
+                return True
+        else:
+            parser.error ("Unknown parameter %s" % (args.command, ))
+            return False
+
+@command
+def set_power(ob, parser, args, subparsers = None):
+    if subparsers is not None:
+        parser_set_power = subparsers.add_parser("set_power")
+        parser_set_power.add_argument("command",
+                                      action="store",
+                                      help="{on,off}")
+        parser_set_power.set_defaults(func=set_power)
+        return
+
+    if args.verbose:
+        msg = "Current state of %s is %s" % (power_url,
+                                             power_mapping["state"], )
+        print msg
+
+#   pdb.set_trace()
+
+    if args.command.upper().lower() == "on":
+        return ob.power_on()
+    elif args.command.upper().lower() == "off":
+        return ob.power_off()
+    else:
+        parser.error ("Unknown parameter %s" % (args.command, ))
+        return False
+
+@command
+def show_memory(ob, parser, args, subparsers = None):
+    if subparsers is not None:
+        parser_show_memory = subparsers.add_parser("show_memory")
+        parser_show_memory.set_defaults(func=show_memory)
+        return
+
+    items = ob.enumerate("/org/openbmc/inventory/system/").items()
+
+    # Loop through the returned map items
+    for (item_key, item_value) in items:
+        # We only care about dimm entries
+        if item_key.find ("/dimm") == -1:
+            continue
+
+        # Avoid something like /org/openbmc/inventory/system/chassis/motherboard/dimm2/event
+        if item_key.endswith ("/event"):
+            continue
+
+        # @BUG
+        # At this point, we have:
+        # {u'Version': u'0x0000',
+        #  u'Name': u'0x0b',
+        #  u'Custom Field 8': u'',
+        #  u'Custom Field 7': u'',
+        #  u'Asset Tag': u'',
+        #  u'Custom Field 5': u'',
+        #  u'Custom Field 4': u'',
+        #  u'Custom Field 3': u'',
+        #  u'Custom Field 2': u'',
+        #  u'Custom Field 1': u'',
+        #  u'is_fru': 1,
+        #  u'fru_type': u'DIMM',
+        #  u'FRU File ID': u'',
+        #  u'Serial Number': u'0x02bb58a7',
+        #  u'Model Number': u'M393B2G70DB0-YK0  ',
+        #  u'version': u'',
+        #  u'Custom Field 6': u'',
+        #  u'fault': u'False',
+        #  u'present': u'True',
+        #  u'Manufacturer': u'0xce80'
+        # }
+        # or:
+        # {u'version': u'',
+        #  u'is_fru': 1,
+        #  u'fru_type': u'DIMM',
+        #  u'fault': u'False',
+        #  u'present': u'True'
+        # }
+        # depending if the system has been powered on before or not.
+
+        # We don't care about non-physical hardware
+        if item_value["present"] == "False":
+            continue
+        # We don't care about faulty hardware
+        if item_value["fault"] == "True":
+            continue
+        # We need a model number
+        if not item_value.has_key("Model Number"):
+            continue
+
+        print item_key
+        print item_value
+
+    return True
+
+@command
+def get_boot_progress(ob, parser, args, subparsers = None):
+    if subparsers is not None:
+        parser_get_boot_progress = subparsers.add_parser("get_boot_progress")
+        parser_get_boot_progress.set_defaults(func=get_boot_progress)
+        return
+
+    progress = ob.get("/org/openbmc/sensors/host/BootProgress")
+
+    # {u'units': u'', u'value': u'Off', u'error': 0}
+
+    print "Progress: %s" % (progress["value"], )
+
+    return True
+
+@command
+def get_events(ob, parser, args, subparsers = None):
+    if subparsers is not None:
+        parser_get_events = subparsers.add_parser("get_events")
+        parser_get_events.set_defaults(func=get_events)
+        return
+
+    events = ob.get("/org/openbmc/records/events/")
+
+    # {u'status': u'ok',
+    #  u'message': u'200 OK',
+    #  u'data': [u'/org/openbmc/records/events/878']
+    # }
+
+    for event in events:
+        event_info = ob.get(event)
+
+        # {u'status': u'ok',
+        #  u'message': u'200 OK',
+        #  u'data': {
+        #      u'associations': [
+        #          [u'fru',
+        #           u'event',
+        #           u'/org/openbmc/inventory/system/chassis/motherboard/dimm3'
+        #          ],
+        #          [u'fru',
+        #           u'event',
+        #           u'/org/openbmc/inventory/system/chassis/motherboard/dimm2'
+        #          ]
+        #      ],
+        #      u'severity': u'Info',
+        #      u'reported_by': u'Test',
+        #      u'debug_data': [
+        #          48, 0, 19, 127, 136, 255
+        #      ],
+        #      u'time': u'2016:09:20 12:57:06',
+        #      u'message': u'A Test event log just happened'
+        #      }
+        # }
+
+    return True
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="Perform OpenBMC operations.")
+    parser.add_argument("-n",            # Sadly -h is already taken
+                        "--hostname",
+                        action="store",
+                        type=str,
+                        dest="hostname",
+                        help="hostname")
+    parser.add_argument("-u",
+                        "--user",
+                        action="store",
+                        type=str,
+                        dest="user",
+                        help="user")
+    parser.add_argument("-p",
+                        "--password",
+                        action="store",
+                        type=str,
+                        dest="password",
+                        help="password")
+    parser.add_argument("-v",
+                        "--verbose",
+                        action="store_true",
+                        dest="verbose",
+                        help="verbose")
+
+    subparsers = parser.add_subparsers(help='sub-command help')
+
+    # Tell all decorated functions that they need to setup their argparse
+    # sub-section
+    for func in command.all.values():
+        func (None,       # We don't care about OpenBMC
+              parser,
+              None,       # We don't have args yet
+              subparsers) # Tell the function to setup for argparse
+
+    # Finally parse the command line arguments
+    args = parser.parse_args()
+
+    # Make sure required arguments are present
+    if not args.hostname:
+        parser.error ("missing --hostname")
+    if not args.user:
+        parser.error ("missing --user")
+    if not args.password:
+        parser.error ("missing --password")
+
+    # disable the following warning written to stdout:
+    # InsecureRequestWarning: Unverified HTTPS request is being made.
+    # Adding certificate verification is strongly advised.
+    # See: https://urllib3.readthedocs.org/en/latest/security.html
+    from requests.packages.urllib3 import disable_warnings
+    from requests.packages.urllib3.exceptions import InsecureRequestWarning
+    disable_warnings(InsecureRequestWarning)
+
+    ob = OpenBMC(args.hostname,
+                 args.user,
+                 args.password)
+
+    if args.verbose:
+        ob.set_verbose(True)
+
+    # Call the specified command with passed in args
+    if not args.func(ob, parser, args):
+        sys.exit(2)
