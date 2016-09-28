@@ -26,5 +26,8 @@ setup(name="openbmc",
       download_url="https://github.com/hamzy/OpenBMC/tarball/v1.1",
       keywords = ["OpenBMC"],
       py_modules=["openbmc/__init__", "openbmc/OpenBMC"],
-      scripts=["openbmc/openBmcTool"]
+      scripts=["openbmc/openBmcTool"],
+      install_requires=[
+          "requests",
+      ],
      )
