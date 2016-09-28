@@ -20,7 +20,10 @@ from distutils.core import setup
 setup(name="openbmc",
       version="1.0",
       description="library for OpenBMC calls",
+      author = "Mark Hamzy",
+      author_email = 'hamy@us.ibm.com',
       url="https://github.com/hamzy/openbmc",
+      keywords = ["OpenBMC"],
       py_modules=["openbmc/__init__", "openbmc/OpenBMC"],
       scripts=["openbmc/openBmcTool"]
      )
