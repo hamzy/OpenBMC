@@ -18,7 +18,7 @@
 from distutils.core import setup
 
 setup(name="openbmc",
-      version="1.0",
+      version="1.1",
       description="library for OpenBMC calls",
       author = "Mark Hamzy",
       author_email = 'hamy@us.ibm.com',
