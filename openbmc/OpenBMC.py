@@ -61,6 +61,8 @@ class OpenBMC(object):
                  user,
                  password):
         self.session = None
+        self.hostname = hostname
+        self.verbose = False
 
         # Create a http session
         session = requests.Session()
@@ -78,11 +80,11 @@ class OpenBMC(object):
                        " (%d)" % (response.status_code, ))
             print >> sys.stderr, err_str
 
-            raise HTTPError(url, response.status_code, data=login_data)
+            raise HTTPError(url,
+                            response.status_code,
+                            data=login_data)
 
         self.session = session
-        self.hostname = hostname
-        self.verbose = False
 
     def set_verbose(self, value):
         self.verbose = value
