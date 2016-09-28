@@ -23,6 +23,7 @@ setup(name="openbmc",
       author = "Mark Hamzy",
       author_email = 'hamy@us.ibm.com',
       url="https://github.com/hamzy/openbmc",
+      download_url="https://github.com/hamzy/OpenBMC/tarball/v1.1",
       keywords = ["OpenBMC"],
       py_modules=["openbmc/__init__", "openbmc/OpenBMC"],
       scripts=["openbmc/openBmcTool"]
