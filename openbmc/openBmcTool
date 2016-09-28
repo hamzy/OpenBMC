@@ -274,6 +274,16 @@ def get_events(ob, parser, args, subparsers = None):
 
     return True
 
+@command
+def get_flash_status(ob, parser, args, subparsers = None):
+    if subparsers is not None:
+        parser_get_flash_status = subparsers.add_parser("get_flash_status")
+        parser_get_flash_status.set_defaults(func=get_flash_status)
+        return
+
+    print ob.get_flash_bios()["status"]
+    return True
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Perform OpenBMC operations.")

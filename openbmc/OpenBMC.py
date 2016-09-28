@@ -295,3 +295,6 @@ class OpenBMC(object):
                     raise HTTPError(url, response.status_code, data=jdata)
 
         return True
+
+    def get_flash_bios(self):
+        return self.get("/org/openbmc/control/flash/bios")
