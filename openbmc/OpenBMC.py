@@ -25,6 +25,10 @@
 # OpenBMC DBUS API
 # https://github.com/openbmc/docs/blob/master/dbus-interfaces.md
 #
+# https://github.com/openbmc/openbmc-test-automation/blob/master/lib/utils.robot
+#
+# https://github.com/causten/tools/tree/master/obmc
+#
 
 import sys
 import pdb
