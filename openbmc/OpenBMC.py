@@ -130,10 +130,9 @@ class OpenBMC(object):
 
         return response.json()["data"]
 
-    def get_power_chassis_mappings(self):
+    def _filter_org_openbmc_control(self, filter_list):
         # Enumerate the inventory of the system's control hardware
         mappings = {}
-        filter_list = ["/power", "/chassis"]
 
         try:
             items = self.enumerate("/org/openbmc/control/").items()
@@ -174,7 +173,8 @@ class OpenBMC(object):
 
     def power_common(self, with_state_do):
         # Query /org/openbmc/control for power and chassis entries
-        mappings = self.get_power_chassis_mappings()
+        filter_list = ["/power", "/chassis"]
+        mappings = self._filter_org_openbmc_control(filter_list)
         if mappings is None:
             return False
 
@@ -263,6 +263,38 @@ class OpenBMC(object):
                 jdata = json.dumps({"data": []})
             return (url, jdata)
         return self.power_common(with_state_on_do)
+
+    def trigger_warm_reset(self):
+        filter_list = ["control/bmc"]
+        mappings = self._filter_org_openbmc_control(filter_list)
+        if mappings is None:
+            return False
+
+        # Loop through the found bmc entries
+        for (ident, ident_mappings) in mappings.items():
+            # Grab our information back out of the mappings
+            (bmc_url, bmc_mapping) = ident_mappings["control/bmc"]
+
+            url = "https://%s%s/action/warmReset" % (self.hostname,
+                                                     bmc_url, )
+            jdata = json.dumps({"data": []})
+
+            if self.verbose:
+                print "POST %s with %s" % (url, jdata, )
+
+            response = self.session.post (url,
+                                          data=jdata,
+                                          verify=False,
+                                          headers=JSON_HEADERS)
+
+            if response.status_code != 200:
+                err_str = ("Error: Response code to PUT is not 200!"
+                           " (%d)" % (response.status_code, ))
+                print >> sys.stderr, err_str
+
+                raise HTTPError(url, response.status_code, data=jdata)
+
+        return True
 
     def get_flash_bios(self):
         return self.get("/org/openbmc/control/flash/bios")
