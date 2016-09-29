@@ -172,7 +172,7 @@ class OpenBMC(object):
 
         return mappings
 
-    def power_on(self):
+    def power_common(self, with_state_do):
         # Query /org/openbmc/control for power and chassis entries
         mappings = self.get_power_chassis_mappings()
         if mappings is None:
@@ -206,99 +206,63 @@ class OpenBMC(object):
                                                      power_mapping["state"], )
                 print msg
 
+            (url, jdata) = with_state_do(power_mapping["state"],
+                                         self.hostname,
+                                         chassis_url)
+
+            if url is None:
+                return False
+
+            if self.verbose:
+                print "POST %s with %s" % (url, jdata, )
+
+            response = self.session.post (url,
+                                          data=jdata,
+                                          verify=False,
+                                          headers=JSON_HEADERS)
+
+            if response.status_code != 200:
+                err_str = ("Error: Response code to PUT is not 200!"
+                           " (%d)" % (response.status_code, ))
+                print >> sys.stderr, err_str
+
+                raise HTTPError(url, response.status_code, data=jdata)
+
+        return True
+
+    def power_on(self):
+        def with_state_off_do(state,
+                              hostname,
+                              chassis_url):
             url = None
             jdata = None
 
-            if power_mapping["state"] == 0:
+            if state == 0:
                 # power_on called and machine is off
-                url = "https://%s%s/action/powerOn" % (self.hostname,
+                url = "https://%s%s/action/powerOn" % (hostname,
                                                        chassis_url, )
                 jdata = json.dumps({"data": []})
-            elif power_mapping["state"] == 1:
+            elif state == 1:
                 # power_on called and machine is on
-                return False
+                pass
 
-            if url is not None:
-                if self.verbose:
-                    print "POST %s with %s" % (url, jdata, )
-
-                response = self.session.post (url,
-                                              data=jdata,
-                                              verify=False,
-                                              headers=JSON_HEADERS)
-
-                if response.status_code != 200:
-                    err_str = ("Error: Response code to PUT is not 200!"
-                               " (%d)" % (response.status_code, ))
-                    print >> sys.stderr, err_str
-
-                    raise HTTPError(url, response.status_code, data=jdata)
-
-        return True
+            return (url, jdata)
+        return self.power_common(with_state_off_do)
 
     def power_off(self):
-        # Query /org/openbmc/control for power and chassis entries
-        mappings = self.get_power_chassis_mappings()
-        if mappings is None:
-            return False
-
-        # Loop through the found power & chassis entries
-        for (ident, ident_mappings) in mappings.items():
-            # { '/power':
-            #     ( u'/org/openbmc/control/power0',
-            #       {u'pgood': 1,
-            #        u'poll_interval': 3000,
-            #        u'pgood_timeout': 10,
-            #        u'heatbeat': 0,
-            #        u'state': 1
-            #       }
-            #     ),
-            #   '/chassis':
-            #     ( u'/org/openbmc/control/chassis0',
-            #       {u'reboot': 0,
-            #        u'uuid': u'24340d83aa784d858468993286b390a5'
-            #       }
-            #     )
-            # }
-
-            # Grab our information back out of the mappings
-            (power_url, power_mapping) = ident_mappings["/power"]
-            (chassis_url, chassis_mapping) = ident_mappings["/chassis"]
-
-            if self.verbose:
-                msg = "Current state of %s is %s" % (power_url,
-                                                     power_mapping["state"], )
-                print msg
-
-            url = None
-            jdata = None
-
-            if power_mapping["state"] == 0:
+        def with_state_on_do(state,
+                             hostname,
+                             chassis_url):
+            if state == 0:
                 # power_off called and machine is off
-                return False
-            elif power_mapping["state"] == 1:
+                pass
+            elif state == 1:
                 # power_off called and machine is on
-                url = "https://%s%s/action/powerOff" % (self.hostname,
+                url = "https://%s%s/action/powerOff" % (hostname,
                                                         chassis_url, )
                 jdata = json.dumps({"data": []})
-
-            if url is not None:
-                if self.verbose:
-                    print "POST %s with %s" % (url, jdata, )
-
-                response = self.session.post (url,
-                                              data=jdata,
-                                              verify=False,
-                                              headers=JSON_HEADERS)
-
-                if response.status_code != 200:
-                    err_str = ("Error: Response code to PUT is not 200!"
-                               " (%d)" % (response.status_code, ))
-                    print >> sys.stderr, err_str
-
-                    raise HTTPError(url, response.status_code, data=jdata)
-
-        return True
+            return (url, jdata)
+        return self.power_common(with_state_on_do)
 
     def get_flash_bios(self):
         return self.get("/org/openbmc/control/flash/bios")
