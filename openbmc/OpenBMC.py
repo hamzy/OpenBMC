@@ -267,6 +267,41 @@ class OpenBMC(object):
             return (url, jdata)
         return self.power_common(with_state_on_do)
 
+    def get_power_state(self):
+        # Query /org/openbmc/control for power and chassis entries
+        filter_list = ["control/chassis"]
+        mappings = self._filter_org_openbmc_control(filter_list)
+        if mappings is None:
+            return False
+
+        # Loop through the found power & chassis entries
+        for (ident, ident_mappings) in mappings.items():
+            # Grab our information back out of the mappings
+            (chassis_url, chassis_mapping) = ident_mappings["control/chassis"]
+
+            url = "https://%s/%s/action/getPowerState" % (self.hostname,
+                                                          chassis_url, ) 
+            jdata = json.dumps({"data": []})
+
+            if self.verbose:
+                print "POST %s with %s" % (url, jdata, )
+
+            response = self.session.post (url,
+                                          data=jdata,
+                                          verify=False,
+                                          headers=JSON_HEADERS)
+
+            if response.status_code != 200:
+                err_str = ("Error: Response code to PUT is not 200!"
+                           " (%d)" % (response.status_code, ))
+                print >> sys.stderr, err_str
+
+                raise HTTPError(url, response.status_code, data=jdata)
+
+            return response.json()["data"]
+
+        return None
+
     def trigger_warm_reset(self):
         filter_list = ["control/bmc"]
         mappings = self._filter_org_openbmc_control(filter_list)

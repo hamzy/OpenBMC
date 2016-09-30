@@ -124,6 +124,16 @@ def set_power(ob, parser, args, subparsers = None):
         return False
 
 @command
+def get_power_state(ob, parser, args, subparsers = None):
+    if subparsers is not None:
+        parser_get_power_state = subparsers.add_parser("get_power_state")
+        parser_get_power_state.set_defaults(func=get_power_state)
+        return
+
+    print ob.get_power_state()
+    return True
+
+@command
 def trigger_warm_reset(ob, parser, args, subparsers = None):
     if subparsers is not None:
         parser_trigger_warm_reset = subparsers.add_parser("trigger_warm_reset")
