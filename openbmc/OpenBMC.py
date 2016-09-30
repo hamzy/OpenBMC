@@ -253,6 +253,9 @@ class OpenBMC(object):
         def with_state_on_do(state,
                              hostname,
                              chassis_url):
+            url = None
+            jdata = None
+
             if state == 0:
                 # power_off called and machine is off
                 pass
