@@ -17,13 +17,14 @@
 
 from distutils.core import setup
 
+VERSION = "1.2"
 setup(name="openbmc",
-      version="1.1",
+      version=VERSION,
       description="library for OpenBMC calls",
       author = "Mark Hamzy",
       author_email = 'hamy@us.ibm.com',
       url="https://github.com/hamzy/openbmc",
-      download_url="https://github.com/hamzy/OpenBMC/tarball/v1.1",
+      download_url="https://github.com/hamzy/OpenBMC/tarball/v"+VERSION,
       keywords = ["OpenBMC"],
       py_modules=["openbmc/__init__", "openbmc/OpenBMC"],
       scripts=["openbmc/openBmcTool"],
