@@ -301,3 +301,26 @@ class OpenBMC(object):
 
     def get_flash_bios(self):
         return self.get("/org/openbmc/control/flash/bios")
+
+    def get_bmc_state(self):
+        path = "org/openbmc/managers/System"
+        url = "https://%s/%s/action/getSystemState" % (self.hostname,
+                                                      path, ) 
+        jdata = json.dumps({"data": []})
+
+        if self.verbose:
+            print "POST %s with %s" % (url, jdata, )
+
+        response = self.session.post (url,
+                                      data=jdata,
+                                      verify=False,
+                                      headers=JSON_HEADERS)
+
+        if response.status_code != 200:
+            err_str = ("Error: Response code to PUT is not 200!"
+                       " (%d)" % (response.status_code, ))
+            print >> sys.stderr, err_str
+
+            raise HTTPError(url, response.status_code, data=jdata)
+
+        return response.json()["data"]
