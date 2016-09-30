@@ -173,7 +173,7 @@ class OpenBMC(object):
 
     def power_common(self, with_state_do):
         # Query /org/openbmc/control for power and chassis entries
-        filter_list = ["/power", "/chassis"]
+        filter_list = ["control/power", "control/chassis"]
         mappings = self._filter_org_openbmc_control(filter_list)
         if mappings is None:
             return False
@@ -198,8 +198,8 @@ class OpenBMC(object):
             # }
 
             # Grab our information back out of the mappings
-            (power_url, power_mapping) = ident_mappings["/power"]
-            (chassis_url, chassis_mapping) = ident_mappings["/chassis"]
+            (power_url, power_mapping) = ident_mappings["control/power"]
+            (chassis_url, chassis_mapping) = ident_mappings["control/chassis"]
 
             if self.verbose:
                 msg = "Current state of %s is %s" % (power_url,

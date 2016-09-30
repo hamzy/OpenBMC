@@ -61,7 +61,8 @@ def is_power(ob, parser, args, subparsers = None):
         return
 
     # Query /org/openbmc/control for power and chassis entries
-    mappings = ob.get_power_chassis_mappings()
+    filter_list = ["control/power", "control/chassis"]
+    mappings = ob._filter_org_openbmc_control(filter_list)
     if mappings is None:
         return False
 
@@ -69,8 +70,8 @@ def is_power(ob, parser, args, subparsers = None):
     for (ident, ident_mappings) in mappings.items():
 
         # Grab our information back out of the mappings
-        (power_url, power_mapping) = ident_mappings["/power"]
-        (chassis_url, chassis_mapping) = ident_mappings["/chassis"]
+        (power_url, power_mapping) = ident_mappings["control/power"]
+        (chassis_url, chassis_mapping) = ident_mappings["control/chassis"]
 
         if args.verbose:
             msg = "Current state of %s is %s" % (power_url,
