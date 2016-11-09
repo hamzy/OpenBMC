@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+"""
+Object library to interact with an OpenBMC controller.
+"""
+
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -30,16 +34,21 @@
 # https://github.com/causten/tools/tree/master/obmc
 #
 
-import sys
-import pdb
-import requests
 import json
+import sys
+import requests
 
 # Sadly a way to fit the line into 78 characters mainly
 JSON_HEADERS = {"Content-Type": "application/json"}
 
+
 class HTTPError(Exception):
-    def __init__(self, url, status_code, data = None):
+    """Custom HTTP error exception"""
+
+    def __init__(self, url, status_code, data=None):
+        super(HTTPError, self).__init__("%s - %s - %s" % (url,
+                                                          status_code,
+                                                          data, ))
         self.url = url
         self.status_code = status_code
         self.data = data
@@ -57,9 +66,13 @@ class HTTPError(Exception):
         return self.__str__()
 
     def get_status_code(self):
+        """Return the status code"""
         return self.status_code
 
+
 class OpenBMC(object):
+    """Operations against a controller running OpenBMC"""
+
     def __init__(self,
                  hostname,
                  user,
@@ -73,11 +86,11 @@ class OpenBMC(object):
 
         # Log in with a special URL and JSON data structure
         url = "https://%s/login" % (hostname, )
-        login_data = json.dumps({"data": [ user, password ]})
-        response = session.post (url,
-                                 data=login_data,
-                                 verify=False,
-                                 headers=JSON_HEADERS)
+        login_data = json.dumps({"data": [user, password]})
+        response = session.post(url,
+                                data=login_data,
+                                verify=False,
+                                headers=JSON_HEADERS)
 
         if response.status_code != 200:
             err_str = ("Error: Response code to login is not 200!"
@@ -91,9 +104,13 @@ class OpenBMC(object):
         self.session = session
 
     def set_verbose(self, value):
+        """Set the verbosity to value"""
+
         self.verbose = value
 
     def enumerate(self, key):
+        """Enumerate the provided key"""
+
         if key.startswith("/"):
             path = key[1:]
         else:
@@ -107,6 +124,8 @@ class OpenBMC(object):
         return self.get(path)
 
     def get(self, key):
+        """Get the value for the provided key"""
+
         if key.startswith("/"):
             path = key[1:]
         else:
@@ -117,9 +136,9 @@ class OpenBMC(object):
         if self.verbose:
             print "GET %s" % (url, )
 
-        response = self.session.get (url,
-                                     verify=False,
-                                     headers=JSON_HEADERS)
+        response = self.session.get(url,
+                                    verify=False,
+                                    headers=JSON_HEADERS)
 
         if response.status_code != 200:
             err_str = ("Error: Response code to get %s enumerate is not 200!"
@@ -131,13 +150,15 @@ class OpenBMC(object):
         return response.json()["data"]
 
     def _filter_org_openbmc_control(self, filter_list):
+        """Filter /org/openbmc/control against the provided filter list"""
+
         # Enumerate the inventory of the system's control hardware
         mappings = {}
 
         try:
             items = self.enumerate("/org/openbmc/control/").items()
-        except HTTPError as e:
-            if e.status_code == 404:
+        except HTTPError as ex:
+            if ex.get_status_code() == 404:
                 # @BUG
                 # There is no /org/openbmc/control entry?!
                 entries = self.get("/org/openbmc/")
@@ -164,14 +185,14 @@ class OpenBMC(object):
                     # Get the identity (the rest of the string)
                     ident = item_key[idx+len(fltr):]
                     # Create a new map for the first time
-                    if not mappings.has_key(ident):
+                    if ident not in mappings:
                         mappings[ident] = {}
                     # Save both the full filename and map contents
                     mappings[ident][fltr] = (item_key, item_value)
 
         return mappings
 
-    def power_common(self, with_state_do):
+    def _power_common(self, with_state_do):
         # Query /org/openbmc/control for power and chassis entries
         filter_list = ["control/power", "control/chassis"]
         mappings = self._filter_org_openbmc_control(filter_list)
@@ -179,7 +200,7 @@ class OpenBMC(object):
             return False
 
         # Loop through the found power & chassis entries
-        for (ident, ident_mappings) in mappings.items():
+        for (_, ident_mappings) in mappings.items():
             # { '/power':
             #     ( u'/org/openbmc/control/power0',
             #       {u'pgood': 1,
@@ -199,7 +220,7 @@ class OpenBMC(object):
 
             # Grab our information back out of the mappings
             (power_url, power_mapping) = ident_mappings["control/power"]
-            (chassis_url, chassis_mapping) = ident_mappings["control/chassis"]
+            (chassis_url, _) = ident_mappings["control/chassis"]
 
             if self.verbose:
                 msg = "Current state of %s is %s" % (power_url,
@@ -216,10 +237,10 @@ class OpenBMC(object):
             if self.verbose:
                 print "POST %s with %s" % (url, jdata, )
 
-            response = self.session.post (url,
-                                          data=jdata,
-                                          verify=False,
-                                          headers=JSON_HEADERS)
+            response = self.session.post(url,
+                                         data=jdata,
+                                         verify=False,
+                                         headers=JSON_HEADERS)
 
             if response.status_code != 200:
                 err_str = ("Error: Response code to PUT is not 200!"
@@ -231,9 +252,13 @@ class OpenBMC(object):
         return True
 
     def power_on(self):
+        """Turn the power on"""
+
         def with_state_off_do(state,
                               hostname,
                               chassis_url):
+            """Do something with the state"""
+
             url = None
             jdata = None
 
@@ -247,12 +272,16 @@ class OpenBMC(object):
                 pass
 
             return (url, jdata)
-        return self.power_common(with_state_off_do)
+        return self._power_common(with_state_off_do)
 
     def power_off(self):
+        """Turn the power off"""
+
         def with_state_on_do(state,
                              hostname,
                              chassis_url):
+            """Do something with the state"""
+
             url = None
             jdata = None
 
@@ -265,9 +294,11 @@ class OpenBMC(object):
                                                         chassis_url, )
                 jdata = json.dumps({"data": []})
             return (url, jdata)
-        return self.power_common(with_state_on_do)
+        return self._power_common(with_state_on_do)
 
     def get_power_state(self):
+        """Return the state of the power"""
+
         # Query /org/openbmc/control for power and chassis entries
         filter_list = ["control/chassis"]
         mappings = self._filter_org_openbmc_control(filter_list)
@@ -275,21 +306,21 @@ class OpenBMC(object):
             return False
 
         # Loop through the found power & chassis entries
-        for (ident, ident_mappings) in mappings.items():
+        for (_, ident_mappings) in mappings.items():
             # Grab our information back out of the mappings
-            (chassis_url, chassis_mapping) = ident_mappings["control/chassis"]
+            (chassis_url, _) = ident_mappings["control/chassis"]
 
             url = "https://%s/%s/action/getPowerState" % (self.hostname,
-                                                          chassis_url, ) 
+                                                          chassis_url, )
             jdata = json.dumps({"data": []})
 
             if self.verbose:
                 print "POST %s with %s" % (url, jdata, )
 
-            response = self.session.post (url,
-                                          data=jdata,
-                                          verify=False,
-                                          headers=JSON_HEADERS)
+            response = self.session.post(url,
+                                         data=jdata,
+                                         verify=False,
+                                         headers=JSON_HEADERS)
 
             if response.status_code != 200:
                 err_str = ("Error: Response code to PUT is not 200!"
@@ -303,15 +334,17 @@ class OpenBMC(object):
         return None
 
     def trigger_warm_reset(self):
+        """Force a warm reset"""
+
         filter_list = ["control/bmc"]
         mappings = self._filter_org_openbmc_control(filter_list)
         if mappings is None:
             return False
 
         # Loop through the found bmc entries
-        for (ident, ident_mappings) in mappings.items():
+        for (_, ident_mappings) in mappings.items():
             # Grab our information back out of the mappings
-            (bmc_url, bmc_mapping) = ident_mappings["control/bmc"]
+            (bmc_url, _) = ident_mappings["control/bmc"]
 
             url = "https://%s%s/action/warmReset" % (self.hostname,
                                                      bmc_url, )
@@ -320,10 +353,10 @@ class OpenBMC(object):
             if self.verbose:
                 print "POST %s with %s" % (url, jdata, )
 
-            response = self.session.post (url,
-                                          data=jdata,
-                                          verify=False,
-                                          headers=JSON_HEADERS)
+            response = self.session.post(url,
+                                         data=jdata,
+                                         verify=False,
+                                         headers=JSON_HEADERS)
 
             if response.status_code != 200:
                 err_str = ("Error: Response code to PUT is not 200!"
@@ -335,21 +368,25 @@ class OpenBMC(object):
         return True
 
     def get_flash_bios(self):
+        """Get the flash BIOS"""
+
         return self.get("/org/openbmc/control/flash/bios")
 
     def get_bmc_state(self):
+        """Get the state of the OpenBMC controller"""
+
         path = "org/openbmc/managers/System"
         url = "https://%s/%s/action/getSystemState" % (self.hostname,
-                                                      path, ) 
+                                                       path, )
         jdata = json.dumps({"data": []})
 
         if self.verbose:
             print "POST %s with %s" % (url, jdata, )
 
-        response = self.session.post (url,
-                                      data=jdata,
-                                      verify=False,
-                                      headers=JSON_HEADERS)
+        response = self.session.post(url,
+                                     data=jdata,
+                                     verify=False,
+                                     headers=JSON_HEADERS)
 
         if response.status_code != 200:
             err_str = ("Error: Response code to PUT is not 200!"

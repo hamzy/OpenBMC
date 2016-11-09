@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+"""
+Library to interact with a PowerPC machine running an
+OpenBMC controller.
+"""
+
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -30,18 +35,33 @@
 # https://github.com/causten/tools/tree/master/obmc
 #
 
+# pylint: disable-msg=C0103
+# pylint: disable=redefined-outer-name
+
 import argparse
 import sys
-import pdb
-import json
+
+# disable the following warning written to stdout:
+# InsecureRequestWarning: Unverified HTTPS request is being made.
+# Adding certificate verification is strongly advised.
+# See: https://urllib3.readthedocs.org/en/latest/security.html
+from requests.packages.urllib3 import disable_warnings
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
 from openbmc.OpenBMC import OpenBMC
+
+disable_warnings(InsecureRequestWarning)
+
 
 # Create a decorator pattern that maintains a registry
 def makeRegistrar():
+    """Decorator that keeps track of tagged functions."""
     registry = {}
+
     def registrar(func):
+        """Store the function pointer."""
         registry[func.__name__] = func
-        # normally a decorator returns a wrapped function, 
+        # normally a decorator returns a wrapped function,
         # but here we return func unmodified, after registering it
         return func
     registrar.all = registry
@@ -50,8 +70,11 @@ def makeRegistrar():
 # Create the decorator
 command = makeRegistrar()
 
+
 @command
-def is_power(ob, parser, args, subparsers = None):
+def is_power(ob, parser, args, subparsers=None):
+    """Return the power status given the args parameter."""
+
     if subparsers is not None:
         parser_ispower = subparsers.add_parser("is_power")
         parser_ispower.add_argument("command",
@@ -60,6 +83,8 @@ def is_power(ob, parser, args, subparsers = None):
         parser_ispower.set_defaults(func=is_power)
         return
 
+    rc = False
+
     # Query /org/openbmc/control for power and chassis entries
     filter_list = ["control/power", "control/chassis"]
     mappings = ob._filter_org_openbmc_control(filter_list)
@@ -67,11 +92,10 @@ def is_power(ob, parser, args, subparsers = None):
         return False
 
     # Loop through the found power & chassis entries
-    for (ident, ident_mappings) in mappings.items():
+    for (_, ident_mappings) in mappings.items():
 
         # Grab our information back out of the mappings
         (power_url, power_mapping) = ident_mappings["control/power"]
-        (chassis_url, chassis_mapping) = ident_mappings["control/chassis"]
 
         if args.verbose:
             msg = "Current state of %s is %s" % (power_url,
@@ -79,28 +103,27 @@ def is_power(ob, parser, args, subparsers = None):
             print msg
 
         if args.command.upper().lower() == "on":
-            if power_mapping["state"] == 1:
-                return True
-            else:
-                return False
+            return bool(power_mapping["state"] == 1)
         elif args.command.upper().lower() == "off":
-            if power_mapping["state"] == 1:
-                return False
-            else:
-                return True
+            return bool(power_mapping["state"] == 0)
         elif args.command.upper().lower() == "?":
             if power_mapping["state"] == 1:
                 print "Power is on"
-                return True
+                rc = True
             else:
                 print "Power is off"
-                return True
+                rc = True
         else:
-            parser.error ("Unknown parameter %s" % (args.command, ))
+            parser.error("Unknown parameter %s" % (args.command, ))
             return False
 
+    return rc
+
+
 @command
-def set_power(ob, parser, args, subparsers = None):
+def set_power(ob, parser, args, subparsers=None):
+    """Set the power to the status given by the args parameter."""
+
     if subparsers is not None:
         parser_set_power = subparsers.add_parser("set_power")
         parser_set_power.add_argument("command",
@@ -109,23 +132,19 @@ def set_power(ob, parser, args, subparsers = None):
         parser_set_power.set_defaults(func=set_power)
         return
 
-    if args.verbose:
-        msg = "Current state of %s is %s" % (power_url,
-                                             power_mapping["state"], )
-        print msg
-
-#   pdb.set_trace()
-
     if args.command.upper().lower() == "on":
         return ob.power_on()
     elif args.command.upper().lower() == "off":
         return ob.power_off()
     else:
-        parser.error ("Unknown parameter %s" % (args.command, ))
+        parser.error("Unknown parameter %s" % (args.command, ))
         return False
 
+
 @command
-def get_power_state(ob, parser, args, subparsers = None):
+def get_power_state(ob, parser, args, subparsers=None):
+    """Print the state of the power."""
+
     if subparsers is not None:
         parser_get_power_state = subparsers.add_parser("get_power_state")
         parser_get_power_state.set_defaults(func=get_power_state)
@@ -134,8 +153,11 @@ def get_power_state(ob, parser, args, subparsers = None):
     print ob.get_power_state()
     return True
 
+
 @command
-def trigger_warm_reset(ob, parser, args, subparsers = None):
+def trigger_warm_reset(ob, parser, args, subparsers=None):
+    """Trigger a warm reset."""
+
     if subparsers is not None:
         parser_trigger_warm_reset = subparsers.add_parser("trigger_warm_reset")
         parser_trigger_warm_reset.set_defaults(func=trigger_warm_reset)
@@ -143,8 +165,11 @@ def trigger_warm_reset(ob, parser, args, subparsers = None):
 
     return ob.trigger_warm_reset()
 
+
 @command
-def show_memory(ob, parser, args, subparsers = None):
+def show_memory(ob, parser, args, subparsers=None):
+    """Show the memory installed in the machine."""
+
     if subparsers is not None:
         parser_show_memory = subparsers.add_parser("show_memory")
         parser_show_memory.set_defaults(func=show_memory)
@@ -155,11 +180,12 @@ def show_memory(ob, parser, args, subparsers = None):
     # Loop through the returned map items
     for (item_key, item_value) in items:
         # We only care about dimm entries
-        if item_key.find ("/dimm") == -1:
+        if item_key.find("/dimm") == -1:
             continue
 
-        # Avoid something like /org/openbmc/inventory/system/chassis/motherboard/dimm2/event
-        if item_key.endswith ("/event"):
+        # Avoid something like
+        # /org/openbmc/inventory/system/chassis/motherboard/dimm2/event
+        if item_key.endswith("/event"):
             continue
 
         # @BUG
@@ -201,7 +227,7 @@ def show_memory(ob, parser, args, subparsers = None):
         if item_value["fault"] == "True":
             continue
         # We need a model number
-        if not item_value.has_key("Model Number"):
+        if "Model Number" not in item_value:
             continue
 
         print item_key
@@ -209,8 +235,11 @@ def show_memory(ob, parser, args, subparsers = None):
 
     return True
 
+
 @command
-def get_boot_progress(ob, parser, args, subparsers = None):
+def get_boot_progress(ob, parser, args, subparsers=None):
+    """Print out the boot progress."""
+
     if subparsers is not None:
         parser_get_boot_progress = subparsers.add_parser("get_boot_progress")
         parser_get_boot_progress.set_defaults(func=get_boot_progress)
@@ -224,8 +253,11 @@ def get_boot_progress(ob, parser, args, subparsers = None):
 
     return True
 
+
 @command
-def get_events(ob, parser, args, subparsers = None):
+def get_events(ob, parser, args, subparsers=None):
+    """Print out the events."""
+
     if subparsers is not None:
         parser_get_events = subparsers.add_parser("get_events")
         parser_get_events.set_defaults(func=get_events)
@@ -239,7 +271,7 @@ def get_events(ob, parser, args, subparsers = None):
     # }
 
     for event in events:
-        event_info = ob.get(event)
+        # event_info = ob.get(event)
 
         # {u'status': u'ok',
         #  u'message': u'200 OK',
@@ -264,10 +296,15 @@ def get_events(ob, parser, args, subparsers = None):
         #      }
         # }
 
+        pass
+
     return True
 
+
 @command
-def get_flash_status(ob, parser, args, subparsers = None):
+def get_flash_status(ob, parser, args, subparsers=None):
+    """Print out the flash status."""
+
     if subparsers is not None:
         parser_get_flash_status = subparsers.add_parser("get_flash_status")
         parser_get_flash_status.set_defaults(func=get_flash_status)
@@ -276,8 +313,11 @@ def get_flash_status(ob, parser, args, subparsers = None):
     print ob.get_flash_bios()["status"]
     return True
 
+
 @command
-def get_bmc_state(ob, parser, args, subparsers = None):
+def get_bmc_state(ob, parser, args, subparsers=None):
+    """Print out the BMC state."""
+
     if subparsers is not None:
         parser_get_bmc_state = subparsers.add_parser("get_bmc_state")
         parser_get_bmc_state.set_defaults(func=get_bmc_state)
@@ -318,29 +358,21 @@ if __name__ == "__main__":
     # Tell all decorated functions that they need to setup their argparse
     # sub-section
     for func in command.all.values():
-        func (None,       # We don't care about OpenBMC
-              parser,
-              None,       # We don't have args yet
-              subparsers) # Tell the function to setup for argparse
+        func(None,        # We don't care about OpenBMC
+             parser,
+             None,        # We don't have args yet
+             subparsers)  # Tell the function to setup for argparse
 
     # Finally parse the command line arguments
     args = parser.parse_args()
 
     # Make sure required arguments are present
     if not args.hostname:
-        parser.error ("missing --hostname")
+        parser.error("missing --hostname")
     if not args.user:
-        parser.error ("missing --user")
+        parser.error("missing --user")
     if not args.password:
-        parser.error ("missing --password")
-
-    # disable the following warning written to stdout:
-    # InsecureRequestWarning: Unverified HTTPS request is being made.
-    # Adding certificate verification is strongly advised.
-    # See: https://urllib3.readthedocs.org/en/latest/security.html
-    from requests.packages.urllib3 import disable_warnings
-    from requests.packages.urllib3.exceptions import InsecureRequestWarning
-    disable_warnings(InsecureRequestWarning)
+        parser.error("missing --password")
 
     ob = OpenBMC(args.hostname,
                  args.user,
