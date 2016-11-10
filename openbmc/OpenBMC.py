@@ -34,9 +34,13 @@ Object library to interact with an OpenBMC controller.
 # https://github.com/causten/tools/tree/master/obmc
 #
 
+# pylint: disable=too-many-arguments
+# pylint: disable=too-few-public-methods
+
 from __future__ import print_function
 
 import json
+import os
 import sys
 import requests
 
@@ -72,19 +76,215 @@ class HTTPError(Exception):
         return self.status_code
 
 
+def safe_filename(filename):
+    """Turn a URL into a safe filename"""
+
+    filename = filename.replace(':', "%"+hex(ord(':')))
+    filename = filename.replace('/', "%"+hex(ord('/')))
+    return filename
+
+
+def load_response_from_file(filename,
+                            url,
+                            verify,
+                            headers,
+                            data=None):
+    """Loads a response from a saved file"""
+
+    print("load_response_from_file (%s)" % (filename, ))
+
+    # import pdb
+    # pdb.set_trace()
+
+    if os.path.isfile(filename):
+        with open(filename, "r") as fpl:
+            json_data = fpl.read()
+        saved = json.loads(json_data)
+
+        if ((data is not None) and
+                (saved["data"] != data)):
+            return None
+
+        if (saved["url"] == url and
+                saved["verify"] == verify and
+                saved["headers"] == headers):
+            response = CachedResponse(saved["status_code"],
+                                      saved["json_struct"])
+
+            return response
+
+    return None
+
+
+def write_response_to_file(filename,
+                           url,
+                           verify,
+                           headers,
+                           status_code,
+                           json_struct,
+                           data=None):
+    """Saves a file containing the response"""
+
+    to_save = {}
+    to_save["url"] = url
+    if data is not None:
+        to_save["data"] = data
+    to_save["verify"] = verify
+    to_save["headers"] = headers
+    to_save["status_code"] = status_code
+    to_save["json_struct"] = json_struct
+
+    json_data = json.dumps(to_save)
+
+    msg = "CachedSession:post:OUT: json_data = %s" % (json_data, )
+    print(msg)
+
+    # What is with [invalid-name] Invalid variable name "fp"
+    with open(filename, "w") as fpl:
+        fpl.write(json_data)
+
+
+class CachedSession(object):
+    """online or offline support for a requests.Session()"""
+
+    def __init__(self, online):
+        self.session = requests.Session()
+        self.online = online
+
+    def post(self, url, data, verify, headers):
+        """Replaces session.post()"""
+
+        msg = ("CachedSession:post:IN: url = %s, data = %s, verify = %s,"
+               " headers = %s") % (url, data, verify, headers, )
+        print(msg)
+
+        filename = safe_filename(url)
+
+        ret = None
+
+        if self.online:
+            response = self.session.post(url,
+                                         data=data,
+                                         verify=verify,
+                                         headers=headers)
+
+            ret = CachedResponse(response)
+        else:
+            ret = load_response_from_file(filename,
+                                          url,
+                                          verify,
+                                          headers,
+                                          data)
+
+        if ret is None:
+            raise Exception("Danger Will Robinson!")
+
+        msg = "CachedSession:post:OUT: ret = %s" % (ret, )
+        print(msg)
+
+        if self.online:
+            write_response_to_file(filename,
+                                   url,
+                                   verify,
+                                   headers,
+                                   response.status_code,
+                                   response.json(),
+                                   data)
+
+        return ret
+
+    def get(self, url, verify, headers):
+        """Replaces session.get()"""
+
+        msg = ("CachedSession:get:IN: url = %s, verify = %s,"
+               " headers = %s") % (url, verify, headers, )
+        print(msg)
+
+        filename = safe_filename(url)
+        ret = None
+
+        if self.online:
+            response = self.session.get(url,
+                                        verify=verify,
+                                        headers=headers)
+
+            ret = CachedResponse(response)
+        else:
+            ret = load_response_from_file(filename,
+                                          url,
+                                          verify,
+                                          headers)
+
+        if ret is None:
+            raise Exception("Danger Will Farrel!")
+
+        msg = "CachedSession:get:OUT: ret = %s" % (ret, )
+        print(msg)
+
+        if self.online:
+            write_response_to_file(filename,
+                                   url,
+                                   verify,
+                                   headers,
+                                   response.status_code,
+                                   response.json())
+
+        return ret
+
+
+class CachedResponse(object):
+    """online or offline support for a session response object"""
+
+    def __init__(self, *args, **_):
+        # args -- tuple of anonymous arguments
+        # _/kwargs -- dictionary of named arguments
+        self.status_code = None
+        self.json_struct = None
+
+        if len(args) == 1:
+            if isinstance(args[0], requests.models.Response):
+                response = args[0]
+                self.status_code = response.status_code
+                self.json_struct = response.json()
+        elif len(args) == 2:
+            if (isinstance(args[0],
+                           int) and
+                    isinstance(args[1],
+                               dict)):
+                self.status_code = args[0]
+                self.json_struct = args[1]
+
+        if self.status_code is None or self.json_struct is None:
+            raise Exception("ruhroh")
+
+    def __getattribute__(self, name):
+        # We may need to call the base's getattribute to return
+        # stuff we support because we are limiting what you can
+        # ask for here.
+        if name in ['status_code', 'json', 'json_struct']:
+            return object.__getattribute__(self, name)
+        else:
+            raise AttributeError(name)
+
+    def json(self):
+        """Return the JSON data"""
+
+        return self.json_struct
+
+
 class OpenBMC(object):
     """Operations against a controller running OpenBMC"""
 
     def __init__(self,
                  hostname,
                  user,
-                 password):
+                 password,
+                 online):
         self.session = None
         self.hostname = hostname
         self.verbose = False
 
-        # Create a http session
-        session = requests.Session()
+        session = CachedSession(online)
 
         # Log in with a special URL and JSON data structure
         url = "https://%s/login" % (hostname, )

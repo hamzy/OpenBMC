@@ -37,6 +37,9 @@ OpenBMC controller.
 
 # pylint: disable-msg=C0103
 # pylint: disable=redefined-outer-name
+# pylint: disable=protected-access
+# pylint: disable=unused-argument
+# pylint: disable=unused-variable
 
 import argparse
 import sys
@@ -352,6 +355,12 @@ if __name__ == "__main__":
                         action="store_true",
                         dest="verbose",
                         help="verbose")
+    parser.add_argument("-o",
+                        "--online",
+                        action="store_true",
+                        default=False,
+                        dest="online",
+                        help="online")
 
     subparsers = parser.add_subparsers(help='sub-command help')
 
@@ -376,7 +385,8 @@ if __name__ == "__main__":
 
     ob = OpenBMC(args.hostname,
                  args.user,
-                 args.password)
+                 args.password,
+                 args.online)
 
     if args.verbose:
         ob.set_verbose(True)
