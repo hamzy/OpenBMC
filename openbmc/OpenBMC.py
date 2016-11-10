@@ -34,6 +34,8 @@ Object library to interact with an OpenBMC controller.
 # https://github.com/causten/tools/tree/master/obmc
 #
 
+from __future__ import print_function
+
 import json
 import sys
 import requests
@@ -95,7 +97,7 @@ class OpenBMC(object):
         if response.status_code != 200:
             err_str = ("Error: Response code to login is not 200!"
                        " (%d)" % (response.status_code, ))
-            print >> sys.stderr, err_str
+            print(err_str, file=sys.stderr)
 
             raise HTTPError(url,
                             response.status_code,
@@ -134,7 +136,7 @@ class OpenBMC(object):
         url = "https://%s/%s" % (self.hostname, path, )
 
         if self.verbose:
-            print "GET %s" % (url, )
+            print("GET %s" % (url, ))
 
         response = self.session.get(url,
                                     verify=False,
@@ -143,7 +145,7 @@ class OpenBMC(object):
         if response.status_code != 200:
             err_str = ("Error: Response code to get %s enumerate is not 200!"
                        " (%d)" % (key, response.status_code, ))
-            print >> sys.stderr, err_str
+            print(err_str, file=sys.stderr)
 
             raise HTTPError(url, response.status_code)
 
@@ -174,9 +176,9 @@ class OpenBMC(object):
                 continue
 
             if self.verbose:
-                print "Found:"
-                print item_key
-                print item_value
+                print("Found:")
+                print(item_key)
+                print(item_value)
 
             # Add the entry into our mappings
             for fltr in filter_list:
@@ -225,7 +227,7 @@ class OpenBMC(object):
             if self.verbose:
                 msg = "Current state of %s is %s" % (power_url,
                                                      power_mapping["state"], )
-                print msg
+                print(msg)
 
             (url, jdata) = with_state_do(power_mapping["state"],
                                          self.hostname,
@@ -235,7 +237,7 @@ class OpenBMC(object):
                 return False
 
             if self.verbose:
-                print "POST %s with %s" % (url, jdata, )
+                print("POST %s with %s" % (url, jdata, ))
 
             response = self.session.post(url,
                                          data=jdata,
@@ -245,7 +247,7 @@ class OpenBMC(object):
             if response.status_code != 200:
                 err_str = ("Error: Response code to PUT is not 200!"
                            " (%d)" % (response.status_code, ))
-                print >> sys.stderr, err_str
+                print(err_str, file=sys.stderr)
 
                 raise HTTPError(url, response.status_code, data=jdata)
 
@@ -315,7 +317,7 @@ class OpenBMC(object):
             jdata = json.dumps({"data": []})
 
             if self.verbose:
-                print "POST %s with %s" % (url, jdata, )
+                print("POST %s with %s" % (url, jdata, ))
 
             response = self.session.post(url,
                                          data=jdata,
@@ -325,7 +327,7 @@ class OpenBMC(object):
             if response.status_code != 200:
                 err_str = ("Error: Response code to PUT is not 200!"
                            " (%d)" % (response.status_code, ))
-                print >> sys.stderr, err_str
+                print(err_str, file=sys.stderr)
 
                 raise HTTPError(url, response.status_code, data=jdata)
 
@@ -351,7 +353,7 @@ class OpenBMC(object):
             jdata = json.dumps({"data": []})
 
             if self.verbose:
-                print "POST %s with %s" % (url, jdata, )
+                print("POST %s with %s" % (url, jdata, ))
 
             response = self.session.post(url,
                                          data=jdata,
@@ -361,7 +363,7 @@ class OpenBMC(object):
             if response.status_code != 200:
                 err_str = ("Error: Response code to PUT is not 200!"
                            " (%d)" % (response.status_code, ))
-                print >> sys.stderr, err_str
+                print(err_str, file=sys.stderr)
 
                 raise HTTPError(url, response.status_code, data=jdata)
 
@@ -381,7 +383,7 @@ class OpenBMC(object):
         jdata = json.dumps({"data": []})
 
         if self.verbose:
-            print "POST %s with %s" % (url, jdata, )
+            print("POST %s with %s" % (url, jdata, ))
 
         response = self.session.post(url,
                                      data=jdata,
@@ -391,7 +393,7 @@ class OpenBMC(object):
         if response.status_code != 200:
             err_str = ("Error: Response code to PUT is not 200!"
                        " (%d)" % (response.status_code, ))
-            print >> sys.stderr, err_str
+            print(err_str, file=sys.stderr)
 
             raise HTTPError(url, response.status_code, data=jdata)
 
