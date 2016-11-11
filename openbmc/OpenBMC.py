@@ -36,6 +36,9 @@ Object library to interact with an OpenBMC controller.
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-few-public-methods
+# pylint: disable=global-statement
+# What is with [invalid-name] Invalid variable name "fp"
+# pylint: disable=invalid-name
 
 from __future__ import print_function
 
@@ -46,6 +49,15 @@ import requests
 
 # Sadly a way to fit the line into 78 characters mainly
 JSON_HEADERS = {"Content-Type": "application/json"}
+DEBUG = False
+
+
+def set_debug(value):
+    """Set the debugging level"""
+
+    global DEBUG
+
+    DEBUG = value
 
 
 class HTTPError(Exception):
@@ -91,15 +103,18 @@ def load_response_from_file(filename,
                             data=None):
     """Loads a response from a saved file"""
 
-    print("load_response_from_file (%s)" % (filename, ))
+    if DEBUG:
+        print("load_response_from_file (%s)" % (filename, ))
 
     # import pdb
     # pdb.set_trace()
 
     if os.path.isfile(filename):
-        with open(filename, "r") as fpl:
-            json_data = fpl.read()
-        saved = json.loads(json_data)
+        saved = None
+
+        with open(filename, "r") as fp:
+            json_data = fp.read()
+            saved = json.loads(json_data)
 
         if ((data is not None) and
                 (saved["data"] != data)):
@@ -136,12 +151,13 @@ def write_response_to_file(filename,
 
     json_data = json.dumps(to_save)
 
-    msg = "CachedSession:post:OUT: json_data = %s" % (json_data, )
-    print(msg)
+    msg = "write_response_to_file: json_data = %s" % (json_data, )
+    if DEBUG:
+        print(msg)
 
     # What is with [invalid-name] Invalid variable name "fp"
-    with open(filename, "w") as fpl:
-        fpl.write(json_data)
+    with open(filename, "w") as fp:
+        fp.write(json_data)
 
 
 class CachedSession(object):
@@ -156,7 +172,8 @@ class CachedSession(object):
 
         msg = ("CachedSession:post:IN: url = %s, data = %s, verify = %s,"
                " headers = %s") % (url, data, verify, headers, )
-        print(msg)
+        if DEBUG:
+            print(msg)
 
         filename = safe_filename(url)
 
@@ -180,7 +197,8 @@ class CachedSession(object):
             raise Exception("Danger Will Robinson!")
 
         msg = "CachedSession:post:OUT: ret = %s" % (ret, )
-        print(msg)
+        if DEBUG:
+            print(msg)
 
         if self.online:
             write_response_to_file(filename,
@@ -198,7 +216,8 @@ class CachedSession(object):
 
         msg = ("CachedSession:get:IN: url = %s, verify = %s,"
                " headers = %s") % (url, verify, headers, )
-        print(msg)
+        if DEBUG:
+            print(msg)
 
         filename = safe_filename(url)
         ret = None
@@ -219,7 +238,8 @@ class CachedSession(object):
             raise Exception("Danger Will Farrel!")
 
         msg = "CachedSession:get:OUT: ret = %s" % (ret, )
-        print(msg)
+        if DEBUG:
+            print(msg)
 
         if self.online:
             write_response_to_file(filename,
@@ -309,6 +329,7 @@ class OpenBMC(object):
         """Set the verbosity to value"""
 
         self.verbose = value
+        set_debug(value)
 
     def enumerate(self, key):
         """Enumerate the provided key"""
